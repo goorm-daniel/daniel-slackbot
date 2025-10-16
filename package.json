@@ -2,11 +2,12 @@
   "name": "broadcast-chatbot",
   "version": "1.0.0",
   "description": "구름 중계팀 AI 슬랙봇 - 중계 가이드북 기반 질의응답 시스템",
-  "main": "src/app.js",
+  "main": "src/slack-app.js",
   "scripts": {
-    "start": "node src/app.js",
+    "start": "node src/slack-app.js",
+    "dev": "nodemon src/slack-app.js",
     "test": "node src/test.js",
-    "dev": "node src/test.js",
+    "vercel-dev": "vercel dev",
     "vercel-build": "echo 'Build completed'"
   },
   "keywords": [
@@ -26,5 +27,8 @@
   },
   "engines": {
     "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
   }
 }

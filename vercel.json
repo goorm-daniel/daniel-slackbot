@@ -1,25 +1,16 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "src/app.js",
-      "use": "@vercel/node"
+  "functions": {
+    "api/slack.js": {
+      "maxDuration": 30
     }
-  ],
-  "routes": [
+  },
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "src/app.js"
+      "source": "/slack/events",
+      "destination": "/api/slack"
     }
   ],
   "env": {
-    "OPENAI_API_KEY": "@openai-api-key",
-    "SLACK_BOT_TOKEN": "@slack-bot-token",
-    "SLACK_SIGNING_SECRET": "@slack-signing-secret"
-  },
-  "functions": {
-    "src/app.js": {
-      "maxDuration": 30
-    }
+    "NODE_ENV": "production"
   }
 }

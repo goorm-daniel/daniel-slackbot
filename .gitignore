@@ -1,0 +1,56 @@
+# 환경변수 파일
+.env
+.env.local
+.env.production
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 로그 파일
+logs
+*.log
+
+# 런타임 데이터
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# 커버리지 디렉토리
+coverage/
+.nyc_output
+
+# 의존성 디렉토리
+jspm_packages/
+
+# 선택적 npm 캐시 디렉토리
+.npm
+
+# 선택적 eslint 캐시
+.eslintcache
+
+# 마이크로태스크 디렉토리
+.microbundle-cache
+
+# 선택적 REPL 히스토리
+.node_repl_history
+
+# 출력 디렉토리
+dist/
+build/
+
+# Vercel
+.vercel
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

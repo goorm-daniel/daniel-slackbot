@@ -1,0 +1,30 @@
+{
+  "name": "broadcast-chatbot",
+  "version": "1.0.0",
+  "description": "구름 중계팀 AI 슬랙봇 - 중계 가이드북 기반 질의응답 시스템",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "test": "node src/test.js",
+    "dev": "node src/test.js",
+    "vercel-build": "echo 'Build completed'"
+  },
+  "keywords": [
+    "slack",
+    "chatbot",
+    "broadcast",
+    "ai",
+    "guide"
+  ],
+  "author": "구름 중계팀",
+  "license": "MIT",
+  "dependencies": {
+    "@slack/bolt": "^4.5.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "openai": "^4.20.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "src/app.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "src/app.js"
+    }
+  ],
+  "env": {
+    "OPENAI_API_KEY": "@openai-api-key",
+    "SLACK_BOT_TOKEN": "@slack-bot-token",
+    "SLACK_SIGNING_SECRET": "@slack-signing-secret"
+  },
+  "functions": {
+    "src/app.js": {
+      "maxDuration": 30
+    }
+  }
+}

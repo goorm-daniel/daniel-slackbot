@@ -1,0 +1,54 @@
+{
+  "locations": {
+    "구름스퀘어_판교": {
+      "name": "구름스퀘어 판교",
+      "address": "경기도 성남시 분당구 판교역로 166",
+      "equipment": {
+        "capture_card": "HDMI 캡처보드 2대",
+        "camera": "PTZ 카메라 1대",
+        "audio": "무선 마이크 2개",
+        "lighting": "LED 조명 세트"
+      },
+      "setup_checklist": [
+        "캡처보드와 노트북 연결",
+        "PTZ 카메라 네트워크 설정",
+        "무선 마이크 배터리 확인",
+        "LED 조명 각도 조정",
+        "인터넷 연결 상태 확인"
+      ],
+      "troubleshooting": {
+        "인터넷": "WiFi: Goorm_Office, 비밀번호: 구름비밀번호",
+        "전원": "무선 마이크 배터리 4시간 지속",
+        "공간": "최대 50명 수용 가능"
+      }
+    },
+    "카카오테크": {
+      "name": "카카오테크 캠퍼스",
+      "address": "경기도 성남시 분당구 판교역로 192",
+      "equipment": {
+        "capture_card": "4K 캡처보드 1대",
+        "camera": "고해상도 웹캠 2대",
+        "audio": "USB 마이크 1개"
+      },
+      "setup_checklist": [
+        "4K 캡처보드 설정",
+        "고해상도 웹캠 포지셔닝",
+        "USB 마이크 테스트",
+        "카카오 내부 네트워크 연결"
+      ]
+    },
+    "강남": {
+      "name": "강남 사무실",
+      "address": "서울특별시 강남구 테헤란로 123",
+      "equipment": {
+        "capture_card": "기본 캡처보드 1대",
+        "camera": "일반 웹캠 1대"
+      },
+      "setup_checklist": [
+        "기본 장비 연결",
+        "강남 사무실 WiFi 연결",
+        "회의실 예약 확인"
+      ]
+    }
+  }
+}

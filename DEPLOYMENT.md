@@ -3,8 +3,9 @@
 ## 📋 배포 체크리스트
 
 ### 1. ✅ 파일 준비 완료
-- `vercel.json` - Vercel 설정
-- `src/app.js` - 메인 서버 파일
+- `vercel.json` - Vercel 서버리스 함수 설정
+- `api/slack.js` - Vercel 서버리스 함수
+- `src/slack-app.js` - 로컬 테스트용 서버
 - `package.json` - 의존성 업데이트 완료
 
 ### 2. 🔑 환경변수 설정
@@ -85,17 +86,20 @@ vercel --prod
 # 서버 실행
 npm start
 
+# Vercel 로컬 개발 서버
+npm run vercel-dev
+
 # 테스트
-curl http://localhost:3000/health
+curl http://localhost:3000/slack/events
 ```
 
 #### **배포 후 테스트**
 ```bash
-# 헬스체크
-curl https://your-vercel-app.vercel.app/health
+# Slack 이벤트 엔드포인트 테스트
+curl -X POST https://your-vercel-app.vercel.app/slack/events
 
-# 대시보드 확인
-# https://your-vercel-app.vercel.app/dashboard
+# Vercel 함수 로그 확인
+vercel logs
 ```
 
 #### **Slack 테스트**
@@ -107,11 +111,8 @@ curl https://your-vercel-app.vercel.app/health
 
 ## 📊 엔드포인트
 
-- **루트**: `/` - 서비스 상태 확인
-- **헬스체크**: `/health` - 챗봇 상태 확인
-- **대시보드**: `/dashboard` - 웹 대시보드
-- **Slack 이벤트**: `/slack/events` - Slack 이벤트 수신
-- **API 테스트**: `POST /api/chat` - 직접 API 테스트
+- **Slack 이벤트**: `/slack/events` - Slack 이벤트 수신 (Vercel 서버리스 함수)
+- **로컬 개발**: `http://localhost:3000` - 로컬 Slack 앱 서버
 
 ## 🔍 문제 해결
 
@@ -158,18 +159,15 @@ npm start
 
 ## 📝 추가 기능
 
-### **웹 대시보드**
-- 서비스 상태 확인
-- 예시 질문 목록
-- 사용법 안내
+### **Vercel 서버리스 함수**
+- 자동 스케일링
+- 서버 관리 불필요
+- 글로벌 CDN 배포
 
-### **API 엔드포인트**
-- 직접 API 호출 가능
-- 다른 시스템과 연동 가능
-
-### **헬스체크**
-- 챗봇 상태 모니터링
-- 데이터 로딩 상태 확인
+### **로컬 개발 환경**
+- nodemon을 통한 자동 재시작
+- 실시간 개발 및 테스트
+- 디버깅 지원
 
 ---
 

@@ -1,88 +1,31 @@
-const { App } = require('@slack/bolt');
+const { WebClient } = require('@slack/web-api');
+const crypto = require('crypto');
 const BroadcastChatbot = require('../src/chatbot-logic');
 
-// 슬랙 앱 초기화
-const app = new App({
-  token: process.env.SLACK_BOT_TOKEN,
-  signingSecret: process.env.SLACK_SIGNING_SECRET,
-  processBeforeResponse: true
-});
-
-// 챗봇 인스턴스 생성
+// 슬랙 웹 클라이언트 초기화
+const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+const signingSecret = process.env.SLACK_SIGNING_SECRET;
 const chatbot = new BroadcastChatbot();
 
-// 멘션 이벤트 핸들러
-app.event('app_mention', async ({ event, client, logger }) => {
-  try {
-    console.log('📢 멘션 받음:', event.text);
-    console.log('📋 이벤트 정보:', JSON.stringify(event, null, 2));
-    
-    // 봇 자신의 멘션은 무시 (일반적으로 봇의 user_id는 U09M7CJK7ND)
-    if (event.user === 'U09M7CJK7ND') {
-      console.log('🤖 봇 자신의 메시지 무시');
-      return;
-    }
-    
-    const question = event.text.replace(/<@[^>]+>/g, '').trim();
-    
-    if (!question) {
-      console.log('💬 빈 질문에 대한 안내 메시지 전송');
-      await client.chat.postMessage({
-        channel: event.channel,
-        text: '안녕하세요! 중계 관련 질문을 해주세요 🎥\n\n예시:\n• 맥북 화면이 안나와요\n• OBS 설정 어떻게 해요?\n• 판교에서 중계 준비는?',
-        thread_ts: event.ts
-      });
-      console.log('✅ 안내 메시지 전송 완료');
-      return;
-    }
-    
-    console.log('🤖 챗봇 답변 생성 중...');
-    console.log('❓ 질문:', question);
-    
-    const result = await chatbot.processQuestion(question);
-    console.log('🤖 챗봇 결과:', result);
-    
-    if (result && result.success) {
-      console.log('📤 답변 전송 중...');
-      await client.chat.postMessage({
-        channel: event.channel,
-        text: result.response,
-        thread_ts: event.ts
-      });
-      console.log('✅ 답변 전송 완료');
-    } else {
-      console.log('❌ 답변 생성 실패:', result?.error || 'Unknown error');
-      await client.chat.postMessage({
-        channel: event.channel,
-        text: '😅 죄송합니다. 답변 생성 중 문제가 발생했습니다. 다시 시도해주세요.',
-        thread_ts: event.ts
-      });
-      console.log('✅ 에러 메시지 전송 완료');
-    }
-    
-  } catch (error) {
-    console.error('❌ 슬랙봇 오류:', error);
-    console.error('❌ 에러 스택:', error.stack);
-    
-    try {
-      await client.chat.postMessage({
-        channel: event.channel,
-        text: '😅 죄송합니다. 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
-        thread_ts: event.ts
-      });
-      console.log('✅ 에러 복구 메시지 전송 완료');
-    } catch (slackError) {
-      console.error('❌ 슬랙 메시지 전송 실패:', slackError);
-    }
-  }
-});
+// 슬랙 요청 서명 검증 함수
+function verifySlackSignature(body, signature, timestamp) {
+  if (!signature || !timestamp) return false;
+  
+  const time = Math.floor(new Date().getTime() / 1000);
+  if (Math.abs(time - timestamp) > 300) return false;
+  
+  const sigBasestring = 'v0:' + timestamp + ':' + body;
+  const mySignature = 'v0=' + crypto
+    .createHmac('sha256', signingSecret)
+    .update(sigBasestring, 'utf8')
+    .digest('hex');
+  
+  return crypto.timingSafeEqual(
+    Buffer.from(mySignature, 'utf8'),
+    Buffer.from(signature, 'utf8')
+  );
+}
 
-// 에러 처리
-app.error((error) => {
-  console.error('❌ 슬랙 앱 에러:', error);
-});
-
-// Vercel 서버리스 함수 핸들러
 module.exports = async (req, res) => {
   try {
     console.log('🚀 요청 받음:', req.method);
@@ -99,37 +42,9 @@ module.exports = async (req, res) => {
       return res.status(500).json({ error: 'Signing secret not configured' });
     }
     
-    // CORS 헤더 설정
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    
-    // OPTIONS 요청 처리
-    if (req.method === 'OPTIONS') {
-      console.log('🔧 CORS preflight 요청 처리');
-      res.status(200).end();
-      return;
-    }
-    
-    // POST 요청만 처리
-    if (req.method !== 'POST') {
-      console.log('❌ POST 요청이 아님:', req.method);
-      res.status(405).json({ error: 'Method not allowed' });
-      return;
-    }
-    
-    // 개발 환경에서만 상세 로깅
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🔧 개발 모드 - 상세 정보:');
-      console.log('  Headers:', req.headers);
-      console.log('  Method:', req.method);
-      console.log('  URL:', req.url);
-    }
-    
-    // 1. URL 검증 처리 (최우선)
+    // 1. URL 검증 처리
     if (req.body && req.body.type === 'url_verification') {
-      console.log('🔐 URL 검증 요청 감지');
-      
+      console.log('🔐 URL 검증 요청');
       const challenge = req.body.challenge;
       
       if (!challenge) {
@@ -137,40 +52,111 @@ module.exports = async (req, res) => {
         return res.status(400).json({ error: 'Missing challenge' });
       }
       
-      console.log('🔑 Challenge 값:', challenge);
-      
-      try {
-        // plaintext로 응답
-        res.setHeader('Content-Type', 'text/plain');
-        res.status(200).send(challenge);
-        
-        console.log('✅ URL 검증 응답 완료');
-        return;
-      } catch (verificationError) {
-        console.error('❌ URL 검증 실패:', verificationError);
-        return res.status(500).json({ error: 'URL verification failed' });
+      res.setHeader('Content-Type', 'text/plain');
+      res.status(200).send(challenge);
+      console.log('✅ URL 검증 완료:', challenge);
+      return;
+    }
+    
+    // 2. 슬랙 서명 검증 (프로덕션에서는 필요)
+    const signature = req.headers['x-slack-signature'];
+    const timestamp = req.headers['x-slack-request-timestamp'];
+    const body = JSON.stringify(req.body);
+    
+    // 개발 환경에서는 서명 검증 스킵 (필요시)
+    if (process.env.NODE_ENV === 'production') {
+      if (!verifySlackSignature(body, signature, timestamp)) {
+        console.error('❌ 슬랙 서명 검증 실패');
+        return res.status(400).send('Invalid signature');
       }
     }
     
-    // 2. 슬랙 이벤트 타입 확인 및 로깅
-    if (req.body && req.body.event) {
-      console.log('📋 슬랙 이벤트 타입:', req.body.event.type);
-      console.log('📋 이벤트 상세:', JSON.stringify(req.body.event, null, 2));
+    // 3. 이벤트 콜백 처리
+    if (req.body.type === 'event_callback') {
+      const event = req.body.event;
+      console.log('📨 이벤트 타입:', event.type);
+      console.log('📋 이벤트 상세:', JSON.stringify(event, null, 2));
+      
+      // app_mention 이벤트 처리
+      if (event.type === 'app_mention') {
+        console.log('📢 멘션 메시지:', event.text);
+        console.log('📢 채널:', event.channel);
+        console.log('📢 사용자:', event.user);
+        
+        // 봇 자신의 메시지는 무시
+        if (event.bot_id) {
+          console.log('🤖 봇 메시지 무시');
+          return res.status(200).send('OK');
+        }
+        
+        try {
+          // 멘션 제거하고 질문만 추출
+          const question = event.text.replace(/<@[^>]+>/g, '').trim();
+          console.log('❓ 추출된 질문:', question);
+          
+          if (!question) {
+            await slack.chat.postMessage({
+              channel: event.channel,
+              text: '안녕하세요! 중계 관련 질문을 해주세요 🎥\n\n예시:\n• 맥북 화면이 안나와요\n• OBS 설정 어떻게 해요?\n• 판교에서 중계 준비는?',
+              thread_ts: event.ts
+            });
+            console.log('✅ 안내 메시지 전송');
+            return res.status(200).send('OK');
+          }
+          
+          // 챗봇 로직 실행
+          console.log('🤖 챗봇 처리 시작...');
+          const result = await chatbot.processQuestion(question);
+          console.log('🤖 챗봇 결과:', result);
+          
+          if (result && result.success) {
+            console.log('💬 생성된 답변 길이:', result.response.length);
+            
+            // 슬랙에 답변 전송
+            await slack.chat.postMessage({
+              channel: event.channel,
+              text: result.response,
+              thread_ts: event.ts
+            });
+            
+            console.log('✅ 답변 전송 완료');
+          } else {
+            console.log('❌ 답변 생성 실패:', result?.error || 'Unknown error');
+            
+            // 실패 시 사용자에게 안내
+            await slack.chat.postMessage({
+              channel: event.channel,
+              text: '😅 죄송합니다. 답변 생성 중 문제가 발생했습니다. 다시 시도해주세요.',
+              thread_ts: event.ts
+            });
+          }
+          
+        } catch (chatbotError) {
+          console.error('❌ 챗봇 처리 오류:', chatbotError);
+          console.error('❌ 에러 스택:', chatbotError.stack);
+          
+          // 오류 시 사용자에게 안내
+          try {
+            await slack.chat.postMessage({
+              channel: event.channel,
+              text: '😅 죄송합니다. 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+              thread_ts: event.ts
+            });
+            console.log('✅ 에러 복구 메시지 전송');
+          } catch (slackError) {
+            console.error('❌ 슬랙 메시지 전송 실패:', slackError);
+          }
+        }
+      }
     }
     
-    // 3. 일반 슬랙 이벤트 처리
-    console.log('📨 일반 슬랙 이벤트 처리 시작');
-    
-    // Slack Bolt의 requestHandler 사용 (Vercel 서버리스 환경용)
-    await app.receiver.requestHandler(req, res);
-    
-    console.log('✅ 슬랙 이벤트 처리 완료');
+    // 성공 응답
+    res.status(200).send('OK');
     
   } catch (error) {
     console.error('❌ 서버 에러:', error);
     console.error('❌ 에러 스택:', error.stack);
     
-    // 에러 응답
     if (!res.headersSent) {
       res.status(500).json({ 
         error: 'Internal server error',

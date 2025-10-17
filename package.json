@@ -20,7 +20,7 @@
   "author": "구름 중계팀",
   "license": "MIT",
   "dependencies": {
-    "@slack/bolt": "^4.5.0",
+    "@slack/web-api": "^7.11.0",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "openai": "^4.20.1"

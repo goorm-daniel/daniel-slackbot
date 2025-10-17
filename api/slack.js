@@ -17,8 +17,8 @@ app.event('app_mention', async ({ event, client, logger }) => {
     console.log('📢 멘션 받음:', event.text);
     console.log('📋 이벤트 정보:', JSON.stringify(event, null, 2));
     
-    // 봇 자신의 멘션은 무시
-    if (event.user === event.bot_id) {
+    // 봇 자신의 멘션은 무시 (일반적으로 봇의 user_id는 U09M7CJK7ND)
+    if (event.user === 'U09M7CJK7ND') {
       console.log('🤖 봇 자신의 메시지 무시');
       return;
     }
@@ -161,9 +161,8 @@ module.exports = async (req, res) => {
     // 3. 일반 슬랙 이벤트 처리
     console.log('📨 일반 슬랙 이벤트 처리 시작');
     
-    // Slack Bolt의 requestHandler 사용
-    const handler = app.receiver.requestHandler();
-    await handler(req, res);
+    // Slack Bolt의 requestHandler 사용 (Vercel 서버리스 환경용)
+    await app.receiver.requestHandler(req, res);
     
     console.log('✅ 슬랙 이벤트 처리 완료');
     

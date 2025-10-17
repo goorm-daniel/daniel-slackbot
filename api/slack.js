@@ -17,6 +17,9 @@ const signingSecret = process.env.SLACK_SIGNING_SECRET;
 // 챗봇 인스턴스는 함수 내에서 초기화 (메모리 최적화)
 let chatbot = null;
 
+// 중복 처리 방지를 위한 이벤트 추적 (메모리 기반)
+const processedEvents = new Set();
+
 // 슬랙 요청 서명 검증 함수 (Vercel 서버리스 환경용)
 function verifySlackRequest(signingSecret, body, headers) {
   const signature = headers['x-slack-signature'];
@@ -166,12 +169,35 @@ module.exports = async (req, res) => {
         console.log('📢 멘션 메시지:', event.text);
         console.log('📢 채널:', event.channel);
         console.log('📢 사용자:', event.user);
+        console.log('📢 봇 ID:', event.bot_id);
         
-        // 봇 자신의 메시지는 무시
-        if (event.bot_id) {
-          console.log('🤖 봇 메시지 무시');
+        // 봇 자신의 메시지는 무시 (여러 방법으로 체크)
+        if (event.bot_id || event.user === 'U09M7CJK7ND') {
+          console.log('🤖 봇 자신의 메시지 무시 (bot_id 또는 user_id 체크)');
           return res.status(200).send('OK');
         }
+        
+        // 중복 처리 방지를 위한 추가 체크
+        if (event.subtype === 'bot_message') {
+          console.log('🤖 봇 메시지 서브타입 무시');
+          return res.status(200).send('OK');
+        }
+        
+        // 중복 이벤트 처리 방지
+        const eventId = `${event.ts}_${event.user}_${event.channel}`;
+        if (processedEvents.has(eventId)) {
+          console.log('🔄 중복 이벤트 무시:', eventId);
+          return res.status(200).send('OK');
+        }
+        processedEvents.add(eventId);
+        
+        // 메모리 정리 (최대 100개 이벤트만 보관)
+        if (processedEvents.size > 100) {
+          const firstEvent = processedEvents.values().next().value;
+          processedEvents.delete(firstEvent);
+        }
+        
+        console.log('✅ 새로운 이벤트 처리 시작:', eventId);
         
         try {
           // 멘션 제거하고 질문만 추출

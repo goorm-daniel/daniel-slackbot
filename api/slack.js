@@ -60,6 +60,11 @@ module.exports = async (req, res) => {
     console.log('📥 요청 메서드:', req.method);
     console.log('📥 요청 URL:', req.url);
     
+    // Vercel에서 raw body 설정 (서명 검증용)
+    if (!req.rawBody && req.body) {
+      req.rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    }
+    
     // 챗봇 인스턴스 지연 초기화
     if (!chatbot) {
       try {
@@ -127,15 +132,34 @@ module.exports = async (req, res) => {
       bodyLength: rawBody.length
     });
     
-    // 프로덕션 환경에서 서명 검증
-    if (process.env.NODE_ENV === 'production') {
-      if (!verifySlackRequest(process.env.SLACK_SIGNING_SECRET, rawBody, req.headers)) {
+    // 서명 검증 (개선된 방식)
+    const signature = req.headers['x-slack-signature'];
+    const timestamp = req.headers['x-slack-request-timestamp'];
+    
+    if (signature && timestamp && process.env.SLACK_SIGNING_SECRET) {
+      console.log('🔐 서명 검증 시도');
+      
+      // rawBody 사용 (Vercel에서 설정됨)
+      const bodyForVerification = req.rawBody || rawBody;
+      
+      if (!verifySlackRequest(process.env.SLACK_SIGNING_SECRET, bodyForVerification, req.headers)) {
         console.error('❌ 슬랙 서명 검증 실패');
+        console.log('🔍 디버그 정보:', {
+          hasRawBody: !!req.rawBody,
+          bodyLength: bodyForVerification.length,
+          signature: signature.substring(0, 20) + '...',
+          timestamp: timestamp
+        });
         return res.status(401).send('Unauthorized');
       }
       console.log('✅ 슬랙 서명 검증 성공');
     } else {
-      console.log('🔧 개발 환경 - 서명 검증 스킵');
+      console.log('⚠️ 서명 검증 스킵 (서명 정보 부족 또는 개발 환경)');
+      console.log('🔍 서명 정보:', {
+        hasSignature: !!signature,
+        hasTimestamp: !!timestamp,
+        hasSigningSecret: !!process.env.SLACK_SIGNING_SECRET
+      });
     }
     
     // 3. 이벤트 콜백 처리

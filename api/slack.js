@@ -1,11 +1,21 @@
 const { WebClient } = require('@slack/web-api');
 const crypto = require('crypto');
-const BroadcastChatbot = require('../src/chatbot-logic');
+
+// 환경변수 확인
+if (!process.env.SLACK_BOT_TOKEN) {
+  console.error('❌ SLACK_BOT_TOKEN이 설정되지 않았습니다');
+}
+
+if (!process.env.SLACK_SIGNING_SECRET) {
+  console.error('❌ SLACK_SIGNING_SECRET이 설정되지 않았습니다');
+}
 
 // 슬랙 웹 클라이언트 초기화
 const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
 const signingSecret = process.env.SLACK_SIGNING_SECRET;
-const chatbot = new BroadcastChatbot();
+
+// 챗봇 인스턴스는 함수 내에서 초기화 (메모리 최적화)
+let chatbot = null;
 
 // 슬랙 요청 서명 검증 함수
 function verifySlackSignature(body, signature, timestamp) {
@@ -28,10 +38,23 @@ function verifySlackSignature(body, signature, timestamp) {
 
 module.exports = async (req, res) => {
   try {
-    console.log('🚀 요청 받음:', req.method);
-    console.log('📥 요청 바디:', JSON.stringify(req.body, null, 2));
+    console.log('🚀 Vercel 서버리스 함수 시작');
+    console.log('📥 요청 메서드:', req.method);
+    console.log('📥 요청 URL:', req.url);
     
-    // 환경변수 확인
+    // 챗봇 인스턴스 지연 초기화
+    if (!chatbot) {
+      try {
+        const BroadcastChatbot = require('../src/chatbot-logic');
+        chatbot = new BroadcastChatbot();
+        console.log('✅ 챗봇 인스턴스 초기화 완료');
+      } catch (chatbotError) {
+        console.error('❌ 챗봇 초기화 실패:', chatbotError);
+        return res.status(500).json({ error: 'Chatbot initialization failed' });
+      }
+    }
+    
+    // 환경변수 재확인
     if (!process.env.SLACK_BOT_TOKEN) {
       console.error('❌ SLACK_BOT_TOKEN이 설정되지 않았습니다');
       return res.status(500).json({ error: 'Bot token not configured' });
@@ -63,12 +86,19 @@ module.exports = async (req, res) => {
     const timestamp = req.headers['x-slack-request-timestamp'];
     const body = JSON.stringify(req.body);
     
+    console.log('🔍 서명 검증 정보:', {
+      hasSignature: !!signature,
+      hasTimestamp: !!timestamp,
+      nodeEnv: process.env.NODE_ENV
+    });
+    
     // 개발 환경에서는 서명 검증 스킵 (필요시)
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && signature && timestamp) {
       if (!verifySlackSignature(body, signature, timestamp)) {
         console.error('❌ 슬랙 서명 검증 실패');
         return res.status(400).send('Invalid signature');
       }
+      console.log('✅ 슬랙 서명 검증 성공');
     }
     
     // 3. 이벤트 콜백 처리
@@ -156,12 +186,21 @@ module.exports = async (req, res) => {
   } catch (error) {
     console.error('❌ 서버 에러:', error);
     console.error('❌ 에러 스택:', error.stack);
+    console.error('❌ 에러 타입:', error.constructor.name);
     
+    // 응답이 이미 전송되지 않았을 때만 에러 응답
     if (!res.headersSent) {
-      res.status(500).json({ 
-        error: 'Internal server error',
-        message: error.message 
-      });
+      try {
+        res.status(500).json({ 
+          error: 'Internal server error',
+          message: error.message,
+          type: error.constructor.name
+        });
+      } catch (responseError) {
+        console.error('❌ 응답 전송 실패:', responseError);
+      }
+    } else {
+      console.log('⚠️ 응답이 이미 전송됨, 에러 응답 스킵');
     }
   }
 };

@@ -69,6 +69,9 @@ app.error((error) => {
 // Vercel 서버리스 함수 핸들러
 module.exports = async (req, res) => {
   try {
+    console.log('🚀 요청 받음:', req.method);
+    console.log('📥 요청 바디:', JSON.stringify(req.body, null, 2));
+    
     // CORS 헤더 설정
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -76,23 +79,63 @@ module.exports = async (req, res) => {
     
     // OPTIONS 요청 처리
     if (req.method === 'OPTIONS') {
+      console.log('🔧 CORS preflight 요청 처리');
       res.status(200).end();
       return;
     }
     
     // POST 요청만 처리
     if (req.method !== 'POST') {
+      console.log('❌ POST 요청이 아님:', req.method);
       res.status(405).json({ error: 'Method not allowed' });
       return;
     }
     
-    console.log('📨 Slack 이벤트 수신:', req.url);
+    // 개발 환경에서만 상세 로깅
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔧 개발 모드 - 상세 정보:');
+      console.log('  Headers:', req.headers);
+      console.log('  Method:', req.method);
+      console.log('  URL:', req.url);
+    }
     
-    // Slack 이벤트 처리
+    // 1. URL 검증 처리 (최우선)
+    if (req.body && req.body.type === 'url_verification') {
+      console.log('🔐 URL 검증 요청 감지');
+      
+      const challenge = req.body.challenge;
+      
+      if (!challenge) {
+        console.error('❌ challenge 값이 없습니다');
+        return res.status(400).json({ error: 'Missing challenge' });
+      }
+      
+      console.log('🔑 Challenge 값:', challenge);
+      
+      try {
+        // plaintext로 응답
+        res.setHeader('Content-Type', 'text/plain');
+        res.status(200).send(challenge);
+        
+        console.log('✅ URL 검증 응답 완료');
+        return;
+      } catch (verificationError) {
+        console.error('❌ URL 검증 실패:', verificationError);
+        return res.status(500).json({ error: 'URL verification failed' });
+      }
+    }
+    
+    // 2. 슬랙 이벤트 타입 확인 및 로깅
+    if (req.body && req.body.event) {
+      console.log('📋 슬랙 이벤트 타입:', req.body.event.type);
+    }
+    
+    // 3. 일반 슬랙 이벤트 처리
+    console.log('📨 일반 슬랙 이벤트 처리 시작');
     await app.receiver.requestHandler()(req, res);
     
   } catch (error) {
-    console.error('❌ Vercel 함수 에러:', error);
+    console.error('❌ 서버 에러:', error);
     res.status(500).json({ 
       error: 'Internal server error',
       message: error.message 

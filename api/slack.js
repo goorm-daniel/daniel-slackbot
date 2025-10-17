@@ -17,18 +17,36 @@ const signingSecret = process.env.SLACK_SIGNING_SECRET;
 // 챗봇 인스턴스는 함수 내에서 초기화 (메모리 최적화)
 let chatbot = null;
 
-// 슬랙 요청 서명 검증 함수
-function verifySlackSignature(body, signature, timestamp) {
-  if (!signature || !timestamp) return false;
+// 슬랙 요청 서명 검증 함수 (Vercel 서버리스 환경용)
+function verifySlackRequest(signingSecret, body, headers) {
+  const signature = headers['x-slack-signature'];
+  const timestamp = headers['x-slack-request-timestamp'];
   
+  if (!signature || !timestamp) {
+    console.log('❌ 서명 또는 타임스탬프가 없음');
+    return false;
+  }
+  
+  // 타임스탬프가 5분 이상 지났는지 확인
   const time = Math.floor(new Date().getTime() / 1000);
-  if (Math.abs(time - timestamp) > 300) return false;
+  if (Math.abs(time - timestamp) > 300) {
+    console.log('❌ 타임스탬프가 너무 오래됨:', Math.abs(time - timestamp), '초');
+    return false;
+  }
   
-  const sigBasestring = 'v0:' + timestamp + ':' + body;
+  // 서명 검증
+  const sigBaseString = 'v0:' + timestamp + ':' + body;
   const mySignature = 'v0=' + crypto
     .createHmac('sha256', signingSecret)
-    .update(sigBasestring, 'utf8')
+    .update(sigBaseString, 'utf8')
     .digest('hex');
+  
+  console.log('🔍 서명 검증 디버그:', {
+    expectedSignature: mySignature,
+    receivedSignature: signature,
+    bodyLength: body.length,
+    timestamp: timestamp
+  });
   
   return crypto.timingSafeEqual(
     Buffer.from(mySignature, 'utf8'),
@@ -81,24 +99,43 @@ module.exports = async (req, res) => {
       return;
     }
     
-    // 2. 슬랙 서명 검증 (프로덕션에서는 필요)
-    const signature = req.headers['x-slack-signature'];
-    const timestamp = req.headers['x-slack-request-timestamp'];
-    const body = JSON.stringify(req.body);
+    // 2. 슬랙 서명 검증 (Vercel 서버리스 환경용)
+    console.log('🔍 요청 헤더 정보:', {
+      signature: req.headers['x-slack-signature'] ? '있음' : '없음',
+      timestamp: req.headers['x-slack-request-timestamp'] ? '있음' : '없음',
+      contentType: req.headers['content-type'],
+      userAgent: req.headers['user-agent']
+    });
     
-    console.log('🔍 서명 검증 정보:', {
-      hasSignature: !!signature,
-      hasTimestamp: !!timestamp,
+    console.log('🔑 환경변수 확인:', {
+      hasSigningSecret: !!process.env.SLACK_SIGNING_SECRET,
       nodeEnv: process.env.NODE_ENV
     });
     
-    // 개발 환경에서는 서명 검증 스킵 (필요시)
-    if (process.env.NODE_ENV === 'production' && signature && timestamp) {
-      if (!verifySlackSignature(body, signature, timestamp)) {
+    // Vercel에서 rawBody 처리
+    let rawBody;
+    if (req.rawBody) {
+      rawBody = req.rawBody;
+    } else {
+      // req.body가 이미 파싱된 경우 JSON.stringify로 복원
+      rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    }
+    
+    console.log('📦 Body 정보:', {
+      bodyType: typeof req.body,
+      rawBodyType: typeof rawBody,
+      bodyLength: rawBody.length
+    });
+    
+    // 프로덕션 환경에서 서명 검증
+    if (process.env.NODE_ENV === 'production') {
+      if (!verifySlackRequest(process.env.SLACK_SIGNING_SECRET, rawBody, req.headers)) {
         console.error('❌ 슬랙 서명 검증 실패');
-        return res.status(400).send('Invalid signature');
+        return res.status(401).send('Unauthorized');
       }
       console.log('✅ 슬랙 서명 검증 성공');
+    } else {
+      console.log('🔧 개발 환경 - 서명 검증 스킵');
     }
     
     // 3. 이벤트 콜백 처리

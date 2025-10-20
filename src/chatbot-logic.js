@@ -14,7 +14,8 @@ class BroadcastChatbot {
       troubleshooting: ['안나와', '안돼', '문제', '오류', '이상', '안들려', '느려', '끊겨', '검은색'],
       guide: ['어떻게', '방법', '준비', '체크리스트', '해야', '설정', '연결', '설치'],
       location: ['판교', '카카오', '강남', '구름스퀘어'],
-      equipment: ['캡처보드', '마이크', '카메라', '맥북', '웹캠', 'OBS'],
+      equipment: ['캡처보드', '마이크', '카메라', '맥북', '웹캠', 'OBS', '리모컨', 'PTZ', '믹서', '프로젝터'],
+      equipment_list: ['장비리스트', '장비목록', '장비', '리스트', '목록', '어떤장비', '무슨장비'],
       platform: ['유튜브', '줌', '구글미트', '페이스북']
     };
     
@@ -66,6 +67,7 @@ class BroadcastChatbot {
       const files = [
         'platforms.json',
         'equipment.json', 
+        'equipment_list.json',
         'obs_guide.json',
         'locations.json',
         'zoom_guide.json',
@@ -104,6 +106,7 @@ class BroadcastChatbot {
       obsGuide: this.data?.obs_guide || {},
       locations: this.data?.locations || {},
       equipment: this.data?.equipment || {},
+      equipment_list: this.data?.equipment_list || {},
       platforms: this.data?.platforms || {},
       zoomGuide: this.data?.zoom_guide || {}
     };
@@ -158,6 +161,18 @@ class BroadcastChatbot {
     if (question.includes('마이크') && safeData.checklists?.사운드연결문제) {
       relevantData.사운드 = safeData.checklists.사운드연결문제;
       console.log('✅ 사운드 연결 문제 데이터 추가됨');
+    }
+    
+    // 장비 리스트 관련 질문 처리
+    if ((question.includes('장비') && question.includes('리스트')) || 
+        question.includes('장비목록') || 
+        question.includes('어떤장비') || 
+        question.includes('무슨장비') ||
+        question.includes('장비') && (question.includes('목록') || question.includes('리스트'))) {
+      if (safeData.equipment_list?.장비리스트) {
+        relevantData.장비리스트 = safeData.equipment_list.장비리스트;
+        console.log('✅ 장비 리스트 데이터 추가됨');
+      }
     }
     
     console.log('검색된 데이터 키들:', Object.keys(relevantData));
@@ -236,6 +251,11 @@ class BroadcastChatbot {
 - 구체적인 해결 방법 제시
 - 백업 방안도 함께 제시
 
+이미지와 링크 처리:
+- 데이터에 이미지 URL이 있는 경우, 해당 이미지를 참조하여 설명
+- 상세가이드링크가 있는 경우, "자세한 내용은 [여기](링크)를 참고하세요" 형태로 제시
+- 장소별 기본정보가 있는 경우, 해당 장소의 이미지와 연락처 정보도 함께 제공
+
 재질문 가이드:
 - 답변에 확신이 없거나 추가 정보가 필요한 경우, 구체적인 재질문을 제시
 - 예: "어떤 장비를 사용하고 계신가요?", "어느 단계에서 문제가 발생했나요?"
@@ -281,6 +301,85 @@ ${contextData}
     }
   }
 
+  // Slack용 풍부한 메시지 생성 함수
+  generateRichMessage(analysis, response) {
+    const { relevantData } = analysis;
+    const richMessage = {
+      text: response,
+      blocks: []
+    };
+
+    console.log('🎨 풍부한 메시지 생성 시작');
+    console.log('📊 관련 데이터:', JSON.stringify(relevantData, null, 2));
+
+    // 기본 텍스트 블록 추가
+    richMessage.blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: response
+      }
+    });
+
+    // 관련 데이터에서 이미지와 링크 정보 추출
+    if (relevantData && relevantData.length > 0) {
+      const data = relevantData[0];
+      console.log('📋 추출된 데이터 키들:', Object.keys(data));
+      
+      // 장소별 기본정보가 있는 경우 (최상위 레벨)
+      if (data.이름) {
+        console.log('🏢 기본정보 발견:', data.이름);
+        
+        // 상세 가이드 링크가 있는 경우
+        if (data.상세가이드링크) {
+          console.log('🔗 상세 가이드 링크 추가:', data.상세가이드링크);
+          richMessage.blocks.push({
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `📚 *자세한 가이드*: <${data.상세가이드링크}|${data.이름} 상세 가이드>`
+            }
+          });
+        }
+
+        // 연락처 정보가 있는 경우
+        if (data.연락처) {
+          console.log('📞 연락처 정보 추가:', data.연락처);
+          richMessage.blocks.push({
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `📞 *연락처*: ${data.연락처}`
+            }
+          });
+        }
+      }
+
+      // 각 섹션별 링크 처리 (이미지 제거)
+      Object.keys(data).forEach(key => {
+        if (key !== '이름' && key !== '설명' && key !== '상세가이드링크' && key !== '연락처' && data[key] && typeof data[key] === 'object') {
+          const section = data[key];
+          console.log(`🔍 섹션 처리: ${key}`, section);
+          
+          // 섹션에 상세 가이드 링크가 있는 경우
+          if (section.상세가이드링크) {
+            console.log('🔗 섹션 상세 가이드 링크 추가:', section.상세가이드링크);
+            richMessage.blocks.push({
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: `🔗 *${section.설명 || key} 상세 가이드*: <${section.상세가이드링크}|여기>를 클릭하세요`
+              }
+            });
+          }
+        }
+      });
+    }
+
+    console.log('🎨 최종 풍부한 메시지 블록 수:', richMessage.blocks.length);
+    return richMessage;
+  }
+
   // 메인 처리 함수
   async processQuestion(question, apiKey) {
     try {
@@ -307,11 +406,15 @@ ${contextData}
       // 답변 생성
       const response = await this.generateResponse(analysis);
       
+      // 풍부한 메시지 생성
+      const richMessage = this.generateRichMessage(analysis, response);
+      
       return {
         success: true,
         question: question,
         analysis: analysis,
-        response: response
+        response: response,
+        richMessage: richMessage
       };
 
     } catch (error) {

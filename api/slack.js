@@ -222,14 +222,22 @@ module.exports = async (req, res) => {
           if (result && result.success) {
             console.log('💬 생성된 답변 길이:', result.response.length);
             
-            // 슬랙에 답변 전송
-            await slack.chat.postMessage({
+            // 풍부한 메시지가 있는 경우 사용, 없으면 기본 텍스트 사용
+            const messageOptions = result.richMessage ? {
+              channel: event.channel,
+              text: result.response, // fallback text
+              blocks: result.richMessage.blocks,
+              thread_ts: event.ts
+            } : {
               channel: event.channel,
               text: result.response,
               thread_ts: event.ts
-            });
+            };
             
-            console.log('✅ 답변 전송 완료');
+            // 슬랙에 답변 전송
+            await slack.chat.postMessage(messageOptions);
+            
+            console.log('✅ 답변 전송 완료 (풍부한 메시지 포함)');
           } else {
             console.log('❌ 답변 생성 실패:', result?.error || 'Unknown error');
             

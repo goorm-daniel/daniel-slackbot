@@ -10,6 +10,8 @@ class SimpleRAGAdapter {
   constructor() {
     this.ragSystem = new SimpleRAGSystem();
     this.initialized = false;
+    this.responseCache = new Map(); // 응답 캐시
+    this.cacheTimeout = 5 * 60 * 1000; // 5분 캐시
   }
 
   /**
@@ -41,12 +43,51 @@ class SimpleRAGAdapter {
       return "시스템 초기화 중입니다. 잠시 후 다시 시도해주세요.";
     }
 
+    // 캐시 확인 (중복 답변 방지)
+    const cacheKey = this.generateCacheKey(userMessage, userId);
+    const cachedResponse = this.responseCache.get(cacheKey);
+    if (cachedResponse && (Date.now() - cachedResponse.timestamp) < this.cacheTimeout) {
+      console.log('📋 캐시된 응답 사용:', userMessage.substring(0, 50));
+      return cachedResponse.response;
+    }
+
     try {
       const response = await this.ragSystem.processQuery(userMessage);
-      return this.formatForSlack(response);
+      const formattedResponse = this.formatForSlack(response);
+      
+      // 응답 캐시 저장
+      this.responseCache.set(cacheKey, {
+        response: formattedResponse,
+        timestamp: Date.now()
+      });
+      
+      // 캐시 정리 (오래된 항목 제거)
+      this.cleanupCache();
+      
+      return formattedResponse;
     } catch (error) {
       console.error('RAG 처리 오류:', error);
       return "죄송합니다. 처리 중 오류가 발생했습니다. 다시 시도해주세요. 🔧";
+    }
+  }
+
+  /**
+   * 캐시 키 생성
+   */
+  generateCacheKey(userMessage, userId) {
+    const normalizedMessage = userMessage.toLowerCase().trim();
+    return `${userId || 'anonymous'}_${normalizedMessage}`;
+  }
+
+  /**
+   * 캐시 정리
+   */
+  cleanupCache() {
+    const now = Date.now();
+    for (const [key, value] of this.responseCache.entries()) {
+      if (now - value.timestamp > this.cacheTimeout) {
+        this.responseCache.delete(key);
+      }
     }
   }
 

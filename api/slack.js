@@ -9,17 +9,24 @@ const { SimpleRAGAdapter } = require('../src/adapters/SimpleRAGAdapter');
 
 // RAG 어댑터 인스턴스 (전역으로 유지)
 let ragAdapter = null;
+let isInitializing = false;
+
+// 중복 요청 방지를 위한 세션 관리
+const activeSessions = new Map();
 
 // RAG 시스템 초기화 (한 번만 실행)
 async function initializeRAG() {
-  if (!ragAdapter) {
-    ragAdapter = new SimpleRAGAdapter();
+  if (!ragAdapter && !isInitializing) {
+    isInitializing = true;
     try {
+      ragAdapter = new SimpleRAGAdapter();
       await ragAdapter.initialize();
       console.log('✅ RAG 시스템 초기화 완료 (Vercel)');
     } catch (error) {
       console.error('❌ RAG 초기화 실패:', error);
       // 폴백 모드로 계속 진행
+    } finally {
+      isInitializing = false;
     }
   }
   return ragAdapter;
@@ -65,6 +72,21 @@ module.exports = async (req, res) => {
         // app_mention 이벤트 처리
         if (event.type === 'app_mention' && !event.bot_id) {
           console.log('📢 멘션 메시지:', event.text);
+
+          // 중복 요청 방지: 같은 이벤트 ID로 이미 처리 중인지 확인
+          const eventId = event.client_msg_id || event.ts;
+          if (activeSessions.has(eventId)) {
+            console.log('⚠️ 중복 요청 감지, 무시:', eventId);
+            return res.status(200).json({ status: 'duplicate' });
+          }
+
+          // 세션 등록
+          activeSessions.set(eventId, Date.now());
+          
+          // 5분 후 세션 자동 정리
+          setTimeout(() => {
+            activeSessions.delete(eventId);
+          }, 5 * 60 * 1000);
 
           // RAG 시스템 초기화
           const adapter = await initializeRAG();

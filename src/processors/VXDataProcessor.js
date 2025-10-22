@@ -73,19 +73,25 @@ class VXDataProcessor {
     if (equipmentData.VX팀장비관리) {
       for (const [category, items] of Object.entries(equipmentData.VX팀장비관리)) {
         if (typeof items === 'object') {
-          for (const [itemName, details] of Object.entries(items)) {
-            if (details && details.수량) {
-              const description = this.createEquipmentDescription(itemName, details, category);
-              chunks.push({
-                id: `equipment_${category}_${itemName}`,
-                content: description,
-                metadata: {
-                  source: 'equipment_list',
-                  category: category,
-                  itemType: itemName,
-                  keywords: this.extractKeywords(description)
+          // 3단계 중첩 구조 처리: 카테고리 > 하위카테고리 > 장비
+          for (const [subCategory, subItems] of Object.entries(items)) {
+            if (typeof subItems === 'object') {
+              for (const [itemName, details] of Object.entries(subItems)) {
+                if (details && details.수량) {
+                  const description = this.createEquipmentDescription(itemName, details, category, subCategory);
+                  chunks.push({
+                    id: `equipment_${category}_${subCategory}_${itemName}`,
+                    content: description,
+                    metadata: {
+                      source: 'equipment_list',
+                      category: category,
+                      subCategory: subCategory,
+                      itemType: itemName,
+                      keywords: this.extractKeywords(description)
+                    }
+                  });
                 }
-              });
+              }
             }
           }
         }
@@ -239,19 +245,31 @@ class VXDataProcessor {
   /**
    * 장비 설명 생성 (간소화)
    */
-  createEquipmentDescription(itemName, details, category) {
-    let description = `${itemName}은(는) ${category} 장비입니다.`;
+  createEquipmentDescription(itemName, details, category, subCategory) {
+    let description = `${itemName}은(는) VX팀이 보유한 ${category}의 ${subCategory} 장비입니다.`;
     
     if (details.수량) {
-      description += ` VX팀에서 ${details.수량}대를 보유하고 있습니다.`;
+      description += ` 현재 ${details.수량}대를 보유하고 있습니다.`;
     }
     
     if (details.상태) {
-      description += ` 현재 상태는 ${details.상태}입니다.`;
+      description += ` 모든 장비가 ${details.상태} 상태입니다.`;
+    }
+    
+    if (details.시리얼넘버 && details.시리얼넘버.length > 0) {
+      description += ` 시리얼번호: ${details.시리얼넘버.join(', ')}`;
+    }
+    
+    if (details.구성품 && details.구성품.length > 0) {
+      description += ` 구성품: ${details.구성품.join(', ')}`;
     }
     
     if (details.스펙) {
       description += ` 주요 스펙: ${details.스펙}`;
+    }
+    
+    if (details.비고) {
+      description += ` 비고: ${details.비고}`;
     }
     
     return description;

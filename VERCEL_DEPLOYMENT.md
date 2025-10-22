@@ -62,13 +62,27 @@ git push origin main
 1. `const { pipeline } = require('@xenova/transformers')` → `const { pipeline } = await import('@xenova/transformers')`
 2. 동적 import 사용으로 ES Module 호환성 확보
 
-### 문제 4: 타임아웃 오류
+### 문제 4: 캐시 디렉토리 오류
+**원인**: Vercel 서버리스 환경에서 `@xenova/transformers` 캐시 디렉토리 생성 실패
+**해결**:
+1. 캐시 디렉토리를 `/tmp/transformers_cache`로 설정
+2. 폴백 모델 사용 (`Xenova/all-MiniLM-L6-v2`)
+3. 최종 폴백: Mock 모드 (키워드 기반 유사도 계산)
+
+### 문제 5: 타임아웃 오류
 **원인**: RAG 시스템 초기화 시간이 30초 초과
 **해결**:
 1. `vercel.json`에서 `maxDuration`을 60초로 증가
 2. 또는 RAG 초기화를 비동기로 처리
 
-### 문제 5: CORS 오류
+### 문제 6: 중복 답변 문제
+**원인**: 같은 질문에 대해 동일한 답변을 반복 제공
+**해결**:
+1. 중복 요청 방지: 이벤트 ID 기반 세션 관리
+2. 응답 캐시: 5분간 같은 질문에 대해 캐시된 답변 사용
+3. 답변 랜덤화: 매번 다른 프리픽스와 청크 조합 사용
+
+### 문제 7: CORS 오류
 **원인**: Slack에서 Vercel API 호출 시 CORS 문제
 **해결**: `api/slack.js`에 CORS 헤더가 이미 설정되어 있음
 

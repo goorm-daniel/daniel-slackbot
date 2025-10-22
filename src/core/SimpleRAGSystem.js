@@ -63,20 +63,27 @@ class SimpleRAGSystem {
     }
 
     try {
-      // 1. 검색
-      const searchResult = await this.hybridSearchEngine.searchRelevantChunks(userQuery, 3);
+      // 1. 검색 (랜덤성 추가)
+      const searchResult = await this.hybridSearchEngine.searchRelevantChunks(
+        userQuery, 
+        3 + Math.floor(Math.random() * 2) // 3-4개 청크 랜덤 선택
+      );
       
-      // 2. 답변 생성
+      // 2. 답변 생성 (랜덤성 추가)
       const answerResult = await this.llmAnswerGenerator.generateAnswer(
         userQuery, 
         searchResult.chunks, 
         'general'
       );
 
+      // 3. 답변에 랜덤성 추가 (같은 답변 방지)
+      const variedAnswer = this.addVariationToAnswer(answerResult.answer, userQuery);
+
       return {
         query: userQuery,
-        answer: answerResult.answer,
-        success: true
+        answer: variedAnswer,
+        success: true,
+        timestamp: Date.now()
       };
 
     } catch (error) {
@@ -84,9 +91,32 @@ class SimpleRAGSystem {
       return {
         query: userQuery,
         answer: '죄송합니다. 처리 중 오류가 발생했습니다.',
-        success: false
+        success: false,
+        timestamp: Date.now()
       };
     }
+  }
+
+  /**
+   * 답변에 랜덤성 추가
+   */
+  addVariationToAnswer(answer, query) {
+    const variations = [
+      'VX팀의 경험을 바탕으로',
+      '실제 중계 환경을 고려하여',
+      'VX팀이 보유한 장비 기준으로',
+      '중계 전문가 관점에서',
+      'VX팀의 노하우를 바탕으로'
+    ];
+    
+    const randomVariation = variations[Math.floor(Math.random() * variations.length)];
+    
+    // 답변 시작 부분에 랜덤 프리픽스 추가
+    if (!answer.includes(randomVariation)) {
+      return `${randomVariation} 안내드리겠습니다.\n\n${answer}`;
+    }
+    
+    return answer;
   }
 
   /**

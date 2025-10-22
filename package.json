@@ -1,32 +1,30 @@
 {
-  "name": "broadcast-chatbot",
-  "version": "1.0.0",
-  "description": "구름 중계팀 AI 슬랙봇 - 중계 가이드북 기반 질의응답 시스템",
-  "main": "src/slack-app.js",
+  "name": "vx-rag-bot",
+  "version": "2.0.0",
+  "description": "VX 중계팀 AI 봇 - RAG 기반 심플한 Slack 봇",
+  "main": "src/slack/SlackBot.js",
   "scripts": {
-    "start": "node src/slack-app.js",
-    "dev": "nodemon src/slack-app.js",
-    "test": "node src/test.js",
-    "vercel-dev": "vercel dev",
-    "vercel-build": "echo 'Build completed'"
+    "start": "node src/slack/SlackBot.js",
+    "dev": "nodemon src/slack/SlackBot.js"
   },
   "keywords": [
     "slack",
-    "chatbot",
-    "broadcast",
+    "rag",
     "ai",
-    "guide"
+    "vx",
+    "broadcast"
   ],
-  "author": "구름 중계팀",
+  "author": "VX 중계팀",
   "license": "MIT",
   "dependencies": {
     "@slack/web-api": "^7.11.0",
+    "@xenova/transformers": "^2.17.2",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "openai": "^4.20.1"
   },
   "engines": {
-    "node": "22.x"
+    "node": "18.x"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

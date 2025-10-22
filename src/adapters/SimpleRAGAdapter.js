@@ -92,29 +92,31 @@ class SimpleRAGAdapter {
   }
 
   /**
-   * Slack 포맷팅 (간소화)
+   * Slack 포맷팅 (간결화 + 데이터 검증)
    */
   formatForSlack(ragResponse) {
-    if (!ragResponse.answer) {
-      return "관련 정보를 찾을 수 없습니다. 다른 질문을 시도해보세요.";
-    }
-
-    let message = ragResponse.answer;
+    let answer = ragResponse.answer || '답변을 생성할 수 없습니다.';
     
-    // Slack 마크다운 변환
-    message = message
-      .replace(/\*\*(.*?)\*\*/g, '*$1*')
-      .replace(/📌/g, ':pushpin:')
-      .replace(/⚠️/g, ':warning:')
-      .replace(/💡/g, ':bulb:')
-      .replace(/✅/g, ':white_check_mark:');
+    // 데이터 기반 답변이 아닌 경우 경고 추가
+    if (ragResponse.dataSourced === false) {
+      return `⚠️ ${answer}`;
+    }
+    
+    // 폴백 답변인 경우 표시
+    if (ragResponse.fallback) {
+      answer = `📋 ${answer}`;
+    }
+    
+    // Slack 마크다운 변환 (최소화)
+    answer = answer
+      .replace(/\*\*(.*?)\*\*/g, '*$1*');
 
-    // 길이 제한
-    if (message.length > 3000) {
-      message = message.substring(0, 3000) + '\n\n... (답변이 길어서 일부만 표시됩니다)';
+    // 길이 제한 (더 짧게)
+    if (answer.length > 2000) {
+      answer = answer.substring(0, 2000) + '\n\n... (답변이 길어서 일부만 표시됩니다)';
     }
 
-    return message;
+    return answer;
   }
 
   /**

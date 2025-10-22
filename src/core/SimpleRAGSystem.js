@@ -55,7 +55,7 @@ class SimpleRAGSystem {
   }
 
   /**
-   * 질문 처리 (간소화)
+   * 질문 처리 (검색 품질 검증 + 간결화)
    */
   async processQuery(userQuery) {
     if (!this.initialized) {
@@ -69,20 +69,35 @@ class SimpleRAGSystem {
         3 + Math.floor(Math.random() * 2) // 3-4개 청크 랜덤 선택
       );
       
-      // 2. 답변 생성 (랜덤성 추가)
+      // 2. 검색 품질 확인
+      if (searchResult.quality === 'insufficient' || searchResult.quality === 'failed') {
+        return {
+          query: userQuery,
+          answer: "죄송합니다. VX 데이터에서 관련 정보를 찾을 수 없습니다. 더 구체적인 질문을 해주시거나 VX팀에 직접 문의해주세요.",
+          dataSourced: false,
+          success: true,
+          confidence: 0,
+          timestamp: Date.now()
+        };
+      }
+      
+      // 3. 답변 생성
       const answerResult = await this.llmAnswerGenerator.generateAnswer(
         userQuery, 
         searchResult.chunks, 
         'general'
       );
 
-      // 3. 답변에 랜덤성 추가 (같은 답변 방지)
-      const variedAnswer = this.addVariationToAnswer(answerResult.answer, userQuery);
+      // 4. 답변 품질 검증
+      const finalAnswer = this.validateAndFormat(answerResult, userQuery);
 
       return {
         query: userQuery,
-        answer: variedAnswer,
+        answer: finalAnswer.answer,
+        dataSourced: answerResult.dataSourced !== false,
         success: true,
+        confidence: answerResult.confidence || 0.8,
+        fallback: answerResult.fallback,
         timestamp: Date.now()
       };
 
@@ -91,10 +106,42 @@ class SimpleRAGSystem {
       return {
         query: userQuery,
         answer: '죄송합니다. 처리 중 오류가 발생했습니다.',
+        dataSourced: false,
         success: false,
         timestamp: Date.now()
       };
     }
+  }
+
+  /**
+   * 답변 검증 및 포맷팅
+   */
+  validateAndFormat(answerResult, userQuery) {
+    let answer = answerResult.answer;
+
+    // 답변 길이 제한 (간결성 강제)
+    const lines = answer.split('\n').filter(line => line.trim());
+    if (lines.length > 10) {
+      // 10줄 이상이면 핵심만 추출
+      answer = lines.slice(0, 8).join('\n') + '\n\n...더 자세한 정보가 필요하면 구체적으로 질문해주세요.';
+    }
+
+    // 불필요한 서론 제거
+    const unnecessaryPhrases = [
+      '안녕하세요',
+      '감사합니다',
+      '도움이 되었기를 바랍니다',
+      '추가 질문이 있으시면'
+    ];
+    
+    unnecessaryPhrases.forEach(phrase => {
+      answer = answer.replace(new RegExp(phrase + '.*?\\.', 'gi'), '');
+    });
+
+    return {
+      answer: answer.trim(),
+      validated: true
+    };
   }
 
   /**

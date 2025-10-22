@@ -4,8 +4,6 @@
  * VX팀 내부 사용에 최적화된 심플한 임베딩 시스템
  */
 
-const { pipeline } = require('@xenova/transformers');
-
 class EmbeddingManager {
   constructor() {
     this.modelName = 'Xenova/multilingual-e5-small'; // 안정적인 다국어 모델
@@ -20,7 +18,11 @@ class EmbeddingManager {
   async initializeModel() {
     try {
       console.log(`🔢 임베딩 모델 로딩: ${this.modelName}`);
+      
+      // ES Module 동적 import 사용
+      const { pipeline } = await import('@xenova/transformers');
       this.model = await pipeline('feature-extraction', this.modelName);
+      
       this.initialized = true;
       console.log(`✅ 임베딩 모델 로딩 완료`);
       return true;

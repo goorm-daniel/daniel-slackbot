@@ -56,13 +56,19 @@ git push origin main
 2. Vercel 함수 로그에서 오류 메시지 확인
 3. Mock LLM으로 폴백되는지 확인
 
-### 문제 3: 타임아웃 오류
+### 문제 3: ES Module 오류
+**원인**: `@xenova/transformers`가 ES Module이므로 `require()` 사용 불가
+**해결**: 
+1. `const { pipeline } = require('@xenova/transformers')` → `const { pipeline } = await import('@xenova/transformers')`
+2. 동적 import 사용으로 ES Module 호환성 확보
+
+### 문제 4: 타임아웃 오류
 **원인**: RAG 시스템 초기화 시간이 30초 초과
 **해결**:
 1. `vercel.json`에서 `maxDuration`을 60초로 증가
 2. 또는 RAG 초기화를 비동기로 처리
 
-### 문제 4: CORS 오류
+### 문제 5: CORS 오류
 **원인**: Slack에서 Vercel API 호출 시 CORS 문제
 **해결**: `api/slack.js`에 CORS 헤더가 이미 설정되어 있음
 

@@ -1,11 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/slack.js": {
-      "maxDuration": 30,
-      "runtime": "nodejs22.x"
-    }
-  },
   "routes": [
     {
       "src": "/api/slack",
@@ -15,8 +9,5 @@
       "src": "/(.*)",
       "dest": "/api/slack.js"
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }

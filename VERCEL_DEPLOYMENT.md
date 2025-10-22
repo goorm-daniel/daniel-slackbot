@@ -38,7 +38,7 @@ git push origin main
 ### 4. Node.js 버전 확인
 - **현재 설정**: Node.js 22.x (Vercel 최신 지원)
 - **package.json**: `"engines": { "node": "22.x" }`
-- **vercel.json**: `"runtime": "nodejs22.x"`
+- **vercel.json**: 자동 감지 (런타임 명시 불필요)
 
 ## 🔧 문제 해결
 

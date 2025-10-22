@@ -28,12 +28,17 @@ NODE_ENV=production
 # Vercel CLI 설치 (없는 경우)
 npm i -g vercel
 
-# 배포
+# 배포 (Node.js 22.x 사용)
 vercel --prod
 
 # 또는 GitHub 연동 시 자동 배포
 git push origin main
 ```
+
+### 4. Node.js 버전 확인
+- **현재 설정**: Node.js 22.x (Vercel 최신 지원)
+- **package.json**: `"engines": { "node": "22.x" }`
+- **vercel.json**: `"runtime": "nodejs22.x"`
 
 ## 🔧 문제 해결
 

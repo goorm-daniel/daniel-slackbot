@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "functions": {
+    "api/slack.js": {
+      "maxDuration": 30
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/slack",
+      "dest": "/api/slack.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/slack.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

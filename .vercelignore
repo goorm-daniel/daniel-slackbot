@@ -1,0 +1,10 @@
+# Vercel 배포 시 제외할 파일들
+node_modules/
+.env
+.env.local
+.env.production
+test.js
+test-vercel.js
+src/slack/SlackBot.js
+README.md
+VERCEL_DEPLOYMENT.md

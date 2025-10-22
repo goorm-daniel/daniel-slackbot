@@ -2,7 +2,7 @@
   "name": "vx-rag-bot",
   "version": "2.0.0",
   "description": "VX 중계팀 AI 봇 - RAG 기반 심플한 Slack 봇",
-  "main": "src/slack/SlackBot.js",
+  "main": "api/slack.js",
   "scripts": {
     "start": "node src/slack/SlackBot.js",
     "dev": "nodemon src/slack/SlackBot.js"

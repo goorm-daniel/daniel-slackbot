@@ -32,9 +32,9 @@ class SimpleRAGAdapter {
   }
 
   /**
-   * 메시지 처리 (간소화)
+   * 메시지 처리 (중복 방지 강화)
    */
-  async processMessage(userMessage, userId = null) {
+  async processMessage(userMessage, userId = null, eventId = null) {
     if (!userMessage || !userMessage.trim()) {
       return "안녕하세요! VX 중계 관련 질문을 해주세요 🎬";
     }
@@ -43,23 +43,39 @@ class SimpleRAGAdapter {
       return "시스템 초기화 중입니다. 잠시 후 다시 시도해주세요.";
     }
 
-    // 캐시 확인 (중복 답변 방지)
-    const cacheKey = this.generateCacheKey(userMessage, userId);
+    // 캐시 확인 (중복 답변 방지) - eventId도 포함
+    const cacheKey = this.generateCacheKey(userMessage, userId, eventId);
     const cachedResponse = this.responseCache.get(cacheKey);
     if (cachedResponse && (Date.now() - cachedResponse.timestamp) < this.cacheTimeout) {
-      console.log('📋 캐시된 응답 사용:', userMessage.substring(0, 50));
+      console.log('📋 캐시된 응답 사용:', userMessage.substring(0, 50), 'eventId:', eventId);
       return cachedResponse.response;
+    }
+
+    // 동일한 질문이 최근에 처리되었는지 확인 (1분 이내)
+    const recentCacheKey = this.generateCacheKey(userMessage, userId);
+    const recentResponse = this.responseCache.get(recentCacheKey);
+    if (recentResponse && (Date.now() - recentResponse.timestamp) < 60 * 1000) {
+      console.log('⚠️ 최근 처리된 질문, 동일 응답 반환:', userMessage.substring(0, 50));
+      return recentResponse.response;
     }
 
     try {
       const response = await this.ragSystem.processQuery(userMessage);
       const formattedResponse = this.formatForSlack(response);
       
-      // 응답 캐시 저장
+      // 응답 캐시 저장 (eventId 포함)
       this.responseCache.set(cacheKey, {
         response: formattedResponse,
         timestamp: Date.now()
       });
+      
+      // 일반 캐시도 저장 (최근 질문 확인용)
+      if (recentCacheKey !== cacheKey) {
+        this.responseCache.set(recentCacheKey, {
+          response: formattedResponse,
+          timestamp: Date.now()
+        });
+      }
       
       // 캐시 정리 (오래된 항목 제거)
       this.cleanupCache();
@@ -72,11 +88,17 @@ class SimpleRAGAdapter {
   }
 
   /**
-   * 캐시 키 생성
+   * 캐시 키 생성 (eventId 포함)
    */
-  generateCacheKey(userMessage, userId) {
+  generateCacheKey(userMessage, userId, eventId = null) {
     const normalizedMessage = userMessage.toLowerCase().trim();
-    return `${userId || 'anonymous'}_${normalizedMessage}`;
+    const baseKey = `${userId || 'anonymous'}_${normalizedMessage}`;
+    
+    if (eventId) {
+      return `${baseKey}_${eventId}`;
+    }
+    
+    return baseKey;
   }
 
   /**

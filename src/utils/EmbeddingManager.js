@@ -14,47 +14,67 @@ class EmbeddingManager {
   }
 
   /**
-   * 임베딩 모델 초기화 (간소화)
+   * 타임아웃 헬퍼 함수
+   */
+  timeoutPromise(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error(`타임아웃: ${ms}ms 초과`)), ms)
+      )
+    ]);
+  }
+
+  /**
+   * 임베딩 모델 초기화 (Vercel 최적화: Mock 모드 우선)
    */
   async initializeModel() {
+    // Vercel 서버리스 환경에서는 모델 로딩이 느리므로 Mock 모드를 기본으로 사용
+    const USE_MOCK_MODE_BY_DEFAULT = true; // Vercel 환경에서는 true로 설정
+    
+    if (USE_MOCK_MODE_BY_DEFAULT) {
+      console.log('⚡ Mock 모드 활성화 (Vercel 서버리스 환경 최적화)');
+      console.log('ℹ️  키워드 기반 검색으로 빠르게 응답합니다.');
+      this.mockMode = true;
+      this.initialized = true;
+      console.log(`✅ Mock 모드 초기화 완료 (즉시 사용 가능)`);
+      return true;
+    }
+    
+    // 로컬 개발 환경에서만 실제 모델 로딩 시도
+    const MODEL_LOAD_TIMEOUT = 10000; // 10초 타임아웃
+    
     try {
-      console.log(`🔢 임베딩 모델 로딩: ${this.modelName}`);
+      console.log(`🔢 임베딩 모델 로딩 시작: ${this.modelName}`);
+      console.log(`⏱️  타임아웃 설정: ${MODEL_LOAD_TIMEOUT / 1000}초`);
       
       // ES Module 동적 import 사용
       const { pipeline } = await import('@xenova/transformers');
+      console.log('📦 Transformers 라이브러리 로드 완료');
       
       // Vercel 환경에서 캐시 디렉토리 문제 해결
       const modelOptions = {
-        cache_dir: '/tmp/transformers_cache', // Vercel에서 쓰기 가능한 /tmp 디렉토리 사용
+        cache_dir: '/tmp/transformers_cache',
         local_files_only: false
       };
       
-      this.model = await pipeline('feature-extraction', this.modelName, modelOptions);
+      // 타임아웃 적용하여 모델 로딩
+      const modelPromise = pipeline('feature-extraction', this.modelName, modelOptions);
+      this.model = await this.timeoutPromise(modelPromise, MODEL_LOAD_TIMEOUT);
       
       this.initialized = true;
       console.log(`✅ 임베딩 모델 로딩 완료`);
       return true;
+      
     } catch (error) {
       console.error(`❌ 모델 로딩 실패: ${error.message}`);
+      console.log('🔄 Mock 모드로 자동 전환');
       
-      // Vercel 환경에서 폴백: 더 간단한 모델 사용
-      try {
-        console.log('🔄 폴백 모델 시도: 더 간단한 모델 사용');
-        const { pipeline } = await import('@xenova/transformers');
-        this.model = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-        this.initialized = true;
-        console.log(`✅ 폴백 모델 로딩 완료`);
-        return true;
-      } catch (fallbackError) {
-        console.error(`❌ 폴백 모델도 실패: ${fallbackError.message}`);
-        
-        // 최종 폴백: Mock 모드 활성화
-        console.log('🔄 Mock 모드 활성화: 간단한 키워드 기반 유사도 계산');
-        this.mockMode = true;
-        this.initialized = true;
-        console.log(`✅ Mock 모드 초기화 완료`);
-        return true;
-      }
+      // 즉시 Mock 모드로 전환
+      this.mockMode = true;
+      this.initialized = true;
+      console.log(`✅ Mock 모드 초기화 완료 (즉시 사용 가능)`);
+      return true;
     }
   }
 

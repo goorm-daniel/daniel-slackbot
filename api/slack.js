@@ -122,8 +122,31 @@ module.exports = async (req, res) => {
           // 즉시 응답 반환 (Slack 재시도 방지)
           res.status(200).json({ status: 'processing' });
 
-          // RAG 시스템 초기화
-          const adapter = await initializeRAG();
+          // RAG 시스템 초기화 (타임아웃 적용)
+          let adapter;
+          try {
+            console.log('🔄 RAG 시스템 초기화 시작...');
+            const initPromise = initializeRAG();
+            adapter = await Promise.race([
+              initPromise,
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('RAG 초기화 타임아웃 (25초 초과)')), 25000)
+              )
+            ]);
+            console.log('✅ RAG 시스템 초기화 완료');
+          } catch (initError) {
+            console.error('❌ RAG 초기화 오류:', initError.message);
+            // 초기화 실패 시 에러 메시지 전송
+            const slack = new WebClient(process.env.SLACK_BOT_TOKEN);
+            await slack.chat.postMessage({
+              channel: event.channel,
+              text: '😅 죄송합니다. 시스템 초기화 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.',
+              thread_ts: event.ts
+            });
+            activeSessions.delete(eventId);
+            completedSessions.set(eventId, Date.now());
+            return;
+          }
 
           // 멘션 제거하고 질문만 추출
           const question = event.text.replace(/<@[^>]+>/g, '').trim();

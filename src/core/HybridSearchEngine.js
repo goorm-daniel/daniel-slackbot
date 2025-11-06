@@ -39,27 +39,42 @@ class HybridSearchEngine {
     try {
       console.log(`🔍 검색 시작: "${userQuery}"`);
       
-      // 1. 벡터 검색
-      const vectorScores = await this.calculateVectorScores(userQuery);
-      const maxVectorScore = Math.max(...vectorScores);
-      console.log(`📊 벡터 검색 완료 (최고 점수: ${maxVectorScore.toFixed(3)})`);
+      // 1. 벡터 검색 (Mock 모드가 아닐 때만 실행)
+      let vectorScores = [];
+      let maxVectorScore = 0;
+      
+      if (!this.embeddingManager.mockMode) {
+        vectorScores = await this.calculateVectorScores(userQuery);
+        maxVectorScore = vectorScores.length > 0 ? Math.max(...vectorScores) : 0;
+        console.log(`📊 벡터 검색 완료 (최고 점수: ${maxVectorScore.toFixed(3)})`);
+      } else {
+        console.log('⚡ Mock 모드: 벡터 검색 건너뜀');
+      }
       
       // 2. 키워드 검색
       const keywordScores = this.calculateKeywordScores(userQuery);
       const maxKeywordScore = Math.max(...keywordScores);
       console.log(`📊 키워드 검색 완료 (최고 점수: ${maxKeywordScore.toFixed(3)})`);
       
-      // 3. 점수 결합 (키워드 비중 증가: 벡터 50%, 키워드 50%)
-      // 키워드 점수가 높으면 키워드 비중을 더 높임
-      const keywordWeight = maxKeywordScore > 3 ? 0.6 : 0.5;
-      const vectorWeight = 1 - keywordWeight;
+      // 3. 점수 결합 (Mock 모드 고려)
+      let combinedScores;
       
-      const combinedScores = vectorScores.map((vScore, i) => {
-        // 정규화 (벡터 점수는 보통 0-1 사이, 키워드 점수는 0-10+)
-        const normalizedVectorScore = Math.min(vScore, 1.0);
-        const normalizedKeywordScore = Math.min(keywordScores[i] / 10, 1.0); // 키워드 점수 정규화
-        return (normalizedVectorScore * vectorWeight) + (normalizedKeywordScore * keywordWeight);
-      });
+      if (this.embeddingManager.mockMode || maxVectorScore === 0) {
+        // Mock 모드이거나 벡터 점수가 없는 경우: 키워드만 사용
+        console.log('⚡ Mock 모드: 키워드 검색만 사용');
+        combinedScores = keywordScores.map(kScore => Math.min(kScore / 10, 1.0));
+      } else {
+        // 정상 모드: 벡터 + 키워드 하이브리드
+        const keywordWeight = maxKeywordScore > 3 ? 0.6 : 0.5;
+        const vectorWeight = 1 - keywordWeight;
+        
+        combinedScores = vectorScores.map((vScore, i) => {
+          // 정규화 (벡터 점수는 보통 0-1 사이, 키워드 점수는 0-10+)
+          const normalizedVectorScore = Math.min(vScore, 1.0);
+          const normalizedKeywordScore = Math.min(keywordScores[i] / 10, 1.0);
+          return (normalizedVectorScore * vectorWeight) + (normalizedKeywordScore * keywordWeight);
+        });
+      }
       
       // 4. Top-K 선택
       const topChunks = this.selectTopChunks(combinedScores, topK);

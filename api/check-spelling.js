@@ -10,16 +10,30 @@ const SESSION_TIMEOUT = 30 * 60 * 1000; // 30분
 
 // 세션 정리 (요청 시마다 실행)
 function cleanupSessions() {
-  const now = Date.now();
-  let cleaned = 0;
-  for (const [key, data] of sessions.entries()) {
-    if (now - data.timestamp > SESSION_TIMEOUT) {
+  try {
+    const now = Date.now();
+    let cleaned = 0;
+    const keysToDelete = [];
+    
+    // 먼저 삭제할 키를 수집
+    for (const [key, data] of sessions.entries()) {
+      if (data && data.timestamp && (now - data.timestamp > SESSION_TIMEOUT)) {
+        keysToDelete.push(key);
+      }
+    }
+    
+    // 수집한 키들을 삭제
+    for (const key of keysToDelete) {
       sessions.delete(key);
       cleaned++;
     }
-  }
-  if (cleaned > 0) {
-    console.log(`🧹 세션 정리: ${cleaned}개 제거`);
+    
+    if (cleaned > 0) {
+      console.log(`🧹 세션 정리: ${cleaned}개 제거`);
+    }
+  } catch (error) {
+    console.error('❌ 세션 정리 오류:', error);
+    // 세션 정리 실패해도 계속 진행
   }
 }
 
@@ -81,42 +95,84 @@ module.exports = async (req, res) => {
     if (req.method === 'POST') {
       try {
         console.log('📨 맞춤법 검사 요청 수신');
-        console.log('Content-Type:', req.headers['content-type']);
-        console.log('Body type:', typeof req.body);
-        console.log('Body:', JSON.stringify(req.body).substring(0, 200));
-
-        // 요청 본문 파싱
-        let body = req.body;
+        console.log('Method:', req.method);
+        console.log('Content-Type:', req.headers['content-type'] || 'not set');
         
-        // Vercel이 자동으로 파싱하지 않은 경우 수동 파싱
-        if (!body || Object.keys(body).length === 0) {
-          if (req.headers['content-type']?.includes('application/json')) {
-            // 이미 파싱된 경우
+        // 요청 본문 파싱
+        let body = null;
+        
+        try {
+          // Vercel은 자동으로 JSON을 파싱하지만, 안전하게 처리
+          if (req.body) {
             body = req.body;
           } else {
-            // 스트림에서 읽기 (필요한 경우)
             body = {};
           }
-        }
-
-        const { text, sessionId } = body || {};
-
-        if (!text || (typeof text !== 'string' && text !== undefined)) {
-          console.error('❌ 잘못된 요청:', { text, textType: typeof text });
+          
+          // 디버깅용 로그 (안전하게)
+          if (body && typeof body === 'object') {
+            const bodyKeys = Object.keys(body);
+            console.log('Body keys:', bodyKeys.join(', '));
+            if (bodyKeys.length > 0) {
+              console.log('Body sample:', JSON.stringify(body).substring(0, 100));
+            }
+          }
+        } catch (parseError) {
+          console.error('❌ 요청 본문 파싱 오류:', parseError);
           return res.status(400).json({
-            error: 'text is required',
-            message: '검사할 텍스트가 필요합니다.',
-            received: { text, textType: typeof text }
+            error: 'Invalid request body',
+            message: '요청 본문을 파싱할 수 없습니다.',
+            details: parseError.message
           });
         }
 
-        console.log('✅ 텍스트 수신:', text.substring(0, 50) + '...');
+        // body가 null이거나 undefined인 경우 처리
+        if (!body || typeof body !== 'object') {
+          console.error('❌ 잘못된 요청 본문:', typeof body);
+          return res.status(400).json({
+            error: 'Invalid request body',
+            message: '요청 본문이 올바르지 않습니다.',
+            received: typeof body
+          });
+        }
 
-        // 세션 ID가 없으면 생성
-        const currentSessionId = sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const { text, sessionId } = body;
+
+        // text 검증
+        if (!text) {
+          console.error('❌ text 필드 누락');
+          return res.status(400).json({
+            error: 'text is required',
+            message: '검사할 텍스트가 필요합니다.',
+            received: { hasText: !!text, bodyKeys: Object.keys(body) }
+          });
+        }
+
+        if (typeof text !== 'string') {
+          console.error('❌ text 타입 오류:', typeof text);
+          return res.status(400).json({
+            error: 'text must be a string',
+            message: '텍스트는 문자열이어야 합니다.',
+            received: { textType: typeof text }
+          });
+        }
+
+        if (text.trim().length === 0) {
+          return res.status(400).json({
+            error: 'text cannot be empty',
+            message: '검사할 텍스트가 비어있습니다.'
+          });
+        }
+
+        console.log('✅ 텍스트 수신:', text.length, '자');
+
+        // 세션 ID 생성
+        let currentSessionId = sessionId;
+        if (!currentSessionId || typeof currentSessionId !== 'string') {
+          currentSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
 
         // 간단한 맞춤법 검사 (실제로는 외부 API나 더 정교한 검사 로직 필요)
-        // 여기서는 기본적인 검사만 수행
         const result = {
           originalText: text,
           checkedText: text, // 실제 맞춤법 검사 로직이 필요
@@ -124,40 +180,50 @@ module.exports = async (req, res) => {
           suggestions: [] // 제안 사항
         };
 
-        // 세션 저장
+        // 세션 저장 (안전하게)
+        let sessionSaved = false;
         try {
-          sessions.set(currentSessionId, {
+          const sessionData = {
             data: result,
             timestamp: Date.now()
-          });
+          };
+          
+          sessions.set(currentSessionId, sessionData);
+          sessionSaved = true;
           console.log('✅ 세션 저장 완료:', currentSessionId);
-
-          return res.status(200).json({
-            success: true,
-            sessionId: currentSessionId,
-            result: result,
-            message: '맞춤법 검사가 완료되었습니다.'
-          });
         } catch (sessionError) {
           console.error('❌ 세션 저장 오류:', sessionError);
-          // 세션 저장 실패해도 결과는 반환
-          return res.status(200).json({
-            success: true,
-            sessionId: null,
-            result: result,
-            message: '맞춤법 검사가 완료되었습니다.',
-            warning: '세션 저장 중 오류가 발생했습니다.'
-          });
+          console.error('Session error details:', sessionError.message);
+          // 세션 저장 실패해도 계속 진행
         }
+
+        // 성공 응답 반환
+        const response = {
+          success: true,
+          sessionId: sessionSaved ? currentSessionId : null,
+          result: result,
+          message: '맞춤법 검사가 완료되었습니다.'
+        };
+
+        if (!sessionSaved) {
+          response.warning = '세션 저장 중 오류가 발생했습니다.';
+        }
+
+        return res.status(200).json(response);
 
       } catch (error) {
         console.error('❌ 맞춤법 검사 오류:', error);
-        console.error('Error stack:', error.stack);
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        if (error.stack) {
+          console.error('Error stack:', error.stack);
+        }
+        
         return res.status(500).json({
           error: 'Internal server error',
           message: '맞춤법 검사 중 오류가 발생했습니다.',
-          details: error.message,
-          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+          details: error.message || '알 수 없는 오류',
+          errorType: error.name || 'Unknown'
         });
       }
     }

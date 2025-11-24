@@ -6,6 +6,10 @@
       "dest": "/api/slack.js"
     },
     {
+      "src": "/api/check-spelling",
+      "dest": "/api/check-spelling.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/api/slack.js"
     }
